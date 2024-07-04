@@ -17,7 +17,15 @@ bool do_system(const char *cmd)
  *   or false() if it returned a failure
 */
 
-    return true;
+    // printf("cmd=%s\n", cmd);
+
+    int ret = system(cmd);
+    if(ret == -1) {
+        return false;
+    }
+
+    // Check if the command was executed successfully
+    return WIFEXITED(ret) && WEXITSTATUS(ret) == 0;
 }
 
 /**
@@ -43,6 +51,7 @@ bool do_exec(int count, ...)
     for(i=0; i<count; i++)
     {
         command[i] = va_arg(args, char *);
+        // printf("command=%s\n", command[i]);
     }
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
@@ -58,8 +67,35 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    pid_t pid = fork();
+    if(pid == -1) {
+        // fork() failed
+        perror("fork");
+        
+        va_end(args);
+        return false;
+    } else if(pid == 0){
+        // Child process
+        execv(command[0], command);
 
-    va_end(args);
+        // if execv returns, it must have failed
+        perror("execv");
+        _exit(1);
+    } else {
+        // Paraent Process
+        int status;
+        if(waitpid(pid, &status, 0) == -1){
+            perror("waitpid");
+            va_end(args);
+            return false;
+        }
+
+        va_end(args);
+        
+        // Check if the command executed successfully
+        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
+
 
     return true;
 }
@@ -75,9 +111,12 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     va_start(args, count);
     char * command[count+1];
     int i;
+
+    // printf("outputfile=%s\n", outputfile);
     for(i=0; i<count; i++)
     {
         command[i] = va_arg(args, char *);
+        // printf("command=%s\n", command[i]);
     }
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
@@ -93,7 +132,43 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *
 */
 
-    va_end(args);
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    if(fd < 0){
+        perror("open");
+        va_end(args);
+        return false;
+    }
 
-    return true;
+    pid_t pid = fork();
+    switch (pid)
+    {
+    case -1:
+        perror("fork");
+        close(fd);
+        va_end(args);
+        return false;
+
+    case 0:
+        // Child process
+        if(dup2(fd, STDOUT_FILENO) < 0){
+            perror("dup2"); 
+            _exit(EXIT_FAILURE); 
+        }
+        close(fd);
+        execv(command[0], command);
+        perror("execv");
+        _exit(EXIT_FAILURE);
+
+    default:
+        // Parent process
+        close(fd);
+        int status;
+        if(waitpid(pid, &status, 0) == -1){
+            perror("waitpid");
+            va_end(args);
+            return false;
+        }
+        va_end(args);
+        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
 }
