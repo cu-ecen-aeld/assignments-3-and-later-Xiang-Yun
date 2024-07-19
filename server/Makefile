@@ -4,10 +4,12 @@ TARGET = aesdsocket
 SRCS = aesdsocket.c
 OBJS = $(SRCS:.c=.o)
 
-all: $(TARGET)
-
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
+
+
+all: $(TARGET)
+
 
 clean:
 	rm -f $(TARGET) $(OBJS)

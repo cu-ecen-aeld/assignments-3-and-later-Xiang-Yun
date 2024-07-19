@@ -10,6 +10,8 @@
 #include <syslog.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+
 
 #define PORT 9000
 #define BUFFER_SIZE 1024
